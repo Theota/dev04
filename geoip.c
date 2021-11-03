@@ -1,95 +1,113 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <string.h>
-#include <regex.h>
-#include <assert.h>
+#include <math.h>
+#include <stdbool.h>
 
-bool convertIP2int( char *adresse_ip, unsigned int *ip_int );
-bool findIP( int ip_decimal );
+#define MAXCHAR 1024
 
-int main( int argc, char **argv )
+/* theo tardy*/
+
+void suppr_quot();
+
+int main(int argc, char *argv[])
 {
-    unsigned int ip_decimal;
+    long ip0=0;
+    long ip1=0;
+    long ip2=0;
+    long ip3=0;
+    long ip=0;
+    int i=1; 
+    int j=0;
+    long ip_from=0;
+    long ip_to=0;
+    char output1[99]={0};
+    char output2[99]={0};
+    char output3[99]={0};
 
-    if (argc == 2) {
-        // Affectation et test en une seule fois
-        if ( convertIP2int( argv[1], &ip_decimal ) ) {
-            printf( "ip_decimal=%d\n", ip_decimal);
-            if ( findIP( ip_decimal ) ) {
-                printf("Trouvé");
-            } else {
-                printf("Non trouvé\n");
+    FILE *pfichier;
+    char line[MAXCHAR];
+    char *output;
+
+    //gestion erreur argument ligne de commande
+    if (argc==2)
+    {
+        sscanf(argv[1], "%ld.%ld.%ld.%ld",&ip0,&ip1,&ip2,&ip3);
+
+        ip=ip0*256*256*256 + ip1*256*256 + ip2*256 + ip3;
+
+        pfichier = fopen("geoip.csv","r");
+
+        while (feof(pfichier) != true)
+        {   
+            fgets(line, MAXCHAR, pfichier);
+            //printf("line: %s", line);
+            output = strtok(line, ",");
+
+            i=1;
+
+            //  i<4 car analyse que les 3 premieres cellules de chaque ligne
+            while ((output != NULL)&&(i<4))
+            {
+                j=1;
+                //printf("output: %s\n", output);
+                switch (i)
+                {
+                    case 1:
+                        strcpy(output1, output);
+                        i++;
+                        break;
+                    case 2:
+                        strcpy(output2, output);
+                        i++;
+                        break;
+                    case 3:
+                        strcpy(output3, output);
+                        i++;
+                        break;   
+                    default: ;
+                        break;
+                }
+                output = strtok(NULL, ",");
             }
-        } else {
-            fprintf( stderr, "Erreur adresse IP\n");
-            exit(EXIT_FAILURE);
-        }
-    } else {
+
+            suppr_quot(output1);
+            suppr_quot(output2);
+            suppr_quot(output3);
+
+            // convertir string en int
+            ip_from=atoi(output1);
+            ip_to=atoi(output2);
+
+            // verifier si notre ip est dans la range d'ip de la ligne qu'on analyse
+            if ((ip>=ip_from)&&(ip<=ip_to))
+            {
+                printf("Le pays est : %s\n",output3);
+                return 0;
+            } 
+        }   
+    } else 
+    {
         printf("Usage:\n");
         printf("\t%s <adresse_ip>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
-
-    return(EXIT_SUCCESS);
+    fclose(pfichier);  
+    return 0;
 }
 
-
-bool findIP( int ip_decimal )
+// fonction pour supprimer les quotations mark
+void  suppr_quot(char output[99])
 {
-    return(false);
-}
+    char output_temp[99]={0};
+    int j=1;
 
-// Version avec expression reguliere
-// Si retourne false si adresse invalide
-bool convertIP2int( char *adresse_ip, unsigned int *ip_int )
-{
-    char *IPpattern = "([[:digit:]]{1,3})\\.([[:digit:]]{1,3})\\.([[:digit:]]{1,3})\\.([[:digit:]]{1,3})";
-    regex_t regex; 
-    int err;
-    regmatch_t pmatch[5];
-    int ip[4];
-    bool ip_valid = false;
-
-//    printf("adresse IP: %s\n", adresse_ip );
-
-    // Compilation expression reguliere et verification 4 subexpressions pour detecter une IP
-    err = regcomp(&regex, IPpattern, REG_EXTENDED);
-    assert( err==0 );
-    assert( regex.re_nsub==4 );
-
-    // Execution regex
-    err = regexec(&regex, adresse_ip, 5, pmatch, 0);
-
-    if ( (err==0) &&                                // L'expression a ete trouvee (match)
-        (pmatch[0].rm_so == 0) &&                   // Aucun caractere avant le "match"
-        ( pmatch[0].rm_eo == strlen(adresse_ip) )   // Aucun caractere apres le "match"
-        ){
-
-        ip_valid = true;
-
-        // Pour chaque octet trouve de l'adresse IP
-        for(int octet_num=1; octet_num<=4; octet_num++) {
-            // Copier du debut de la zone trouvee, jusqu'à la fin
-            // pmatch[octet_num].rm_so : debut zone trouvee
-            // pmatch[octet_num].rm_eo caractere suivant la zone trouvee
-            char octet_str[4] = {'\0'};
-            for(int pos=pmatch[octet_num].rm_so, i=0; pos<pmatch[octet_num].rm_eo; pos++, i++) {
-                octet_str[i] = adresse_ip[pos];
-            }
-
-            int octet = atoi(octet_str);
-            if ( (octet>=0) && (octet <=255) ) 
-                ip[octet_num-1] = octet;
-            else
-                ip_valid = false;
-        }
-
-        if (ip_valid) {
-            *ip_int = (ip[0] << 24) | (ip[1] << 16) | (ip[2] << 8) | ip[3];  
-        }
+    memset(output_temp, ' ',99);
+    while (output[j]!=('"'))
+    {
+        output_temp[j-1]=output[j];
+        j++;
     }
-
-    return(ip_valid);
+    memset(output, ' ',99);
+    strcpy(output,output_temp);
 }
-
